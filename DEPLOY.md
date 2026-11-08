@@ -1,28 +1,39 @@
 # Deploy for $0, runs 24/7
 
-The agent uses long polling, so it needs no public URL. Any free host that runs a Python process works.
+The agent uses long polling, so it needs no public URL. It also answers HTTP on `$PORT` (default 7860) so web hosts see it as healthy.
 
-## Option A: Hugging Face Space (recommended, no card, does not sleep while active)
+## What did not work (November 2026)
 
-1. huggingface.co, New Space, SDK: Docker, hardware: CPU basic (free).
-2. Push this folder with the `Dockerfile` below.
-3. Space settings, Variables and secrets: add `TELEGRAM_TOKEN` and `GROQ_API_KEY` as secrets.
+- **Hugging Face Spaces**: Docker Spaces now require a paid PRO plan. Only Static Spaces are free. Dead end for this project.
 
-```Dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY agent.py .
-CMD ["python", "agent.py"]
-```
+## Option A: Render free web service (recommended)
 
-Free Spaces pause after 48 h without visits. Fix: a free cron ping (cron-job.org) to the Space URL every 12 h, or accept the pause for a demo.
+Free: 750 instance hours per month per workspace, enough for one service running all month. Limits: 512 MB RAM, spins down after 15 minutes without HTTP traffic. We keep it awake with a free ping.
 
-## Option B: Render free Background Worker
+1. Push this folder to GitHub (public repo).
+2. render.com, sign up with GitHub. If Render asks for a credit card at any point, stop and use Option B instead.
+3. New, **Web Service**, connect the repo.
+4. Settings:
+   - Language: **Docker** (Render reads the Dockerfile)
+   - Instance type: **Free**
+   - Environment variables: `TELEGRAM_TOKEN`, `GROQ_API_KEY`, `MODEL=openai/gpt-oss-120b`
+5. Create Web Service. First build takes 2 to 4 minutes. Logs should show `agent running, cost so far: $0`.
+6. Copy the service URL, like `https://telegram-research-agent.onrender.com`. Opening it shows `zero dollar agent: running`.
 
-Render's free tier covers web services that sleep. A polling bot needs a worker, which is paid. Skip unless you switch to webhooks.
+### Keep it awake, also free
+
+cron-job.org (free, no card): create a job that GETs your Render URL every 10 minutes. Render then never spins the service down, and 750 hours covers the whole month.
+
+Fair-use note: Render's free docs say not to use free services for production. A personal bot for a video is within reason. If they tighten the rule, move to Option B.
+
+## Option B: Koyeb free instance
+
+One free "nano" web service. Same Dockerfile, same environment variables. Check whether a card is required on the day you sign up.
 
 ## Option C: Your own machine
 
-`python agent.py` in a tmux session. Literally $0, as long as the laptop is on. Good enough for the video demo.
+`docker run -d --restart unless-stopped --env-file .env -p 7860:7860 zerodollar-agent`. Truly $0 while the computer is on.
+
+## Only one poller at a time
+
+Telegram lets one process poll a bot token. Stop the local bot or container before the hosted one starts, or you get `409 Conflict` in the logs.
